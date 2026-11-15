@@ -1,0 +1,31 @@
+{
+  "name": "Sozcode AI Agent Starter",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "postCreateCommand": "pip install --user -r requirements.txt -r requirements-dev.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "jupyter.notebookFileRoot": "${workspaceFolder}"
+      }
+    },
+    "codespaces": {
+      "openFiles": [
+        "README.md",
+        "notebooks/day1/01_python_basics.ipynb"
+      ]
+    }
+  },
+  "secrets": {
+    "TELEGRAM_BOT_TOKEN": {
+      "description": "Your bot token from @BotFather on Telegram (you can add this on Day 1 afternoon)."
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key given to you by the trainer (needed on Day 2)."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# Extra packages for the classroom only (not deployed to Vercel)
+ipykernel
+pytest
+httpx
+uvicorn
+segno

@@ -1,0 +1,6 @@
+notebooks/
+tests/
+.devcontainer/
+requirements-dev.txt
+.env
+pytest.ini
