@@ -20,19 +20,21 @@ Day 2   AI agent + tools  →  memory  →  database  →  live on Vercel 🚀
 |---|---|
 | `notebooks/day1/` | 01–04: Python basics → JSON → Telegram API → your first live bot |
 | `notebooks/day2/` | 05–09: first agent → tools → memory → Supabase → build & deploy |
-| **`main.py`** | **Your whole bot in one file** — read it top to bottom |
+| **`day1_bot.py`** | **Day 1 bot** — the if/else rule bot from notebook 04, in one short file |
+| **`main.py`** | **Day 2 bot** — the full AI agent (tools, memory, web app) in one file |
 | `menu.csv` | The kopitiam menu & prices |
 | `setup.sql` | Creates the database tables in Supabase |
 | `.env.example` | The keys you'll need |
 
 ## ▶️ Run your bot
 
-```
-python main.py
-```
+| Day 1 (rules) | Day 2 (AI agent) |
+|---|---|
+| `python day1_bot.py` | `python main.py` |
+
 Chat with it on Telegram. **Ctrl + C** stops it.
 
-The bot picks its brain by itself:
+`main.py` picks its brain by itself:
 - **No `OPENAI_API_KEY`** → Day 1 if/else rules
 - **With `OPENAI_API_KEY`** → the AI agent (`gpt-6-luna`, with menu, bill and weather tools)
 - **With Supabase keys** → remembers every chat even after a restart

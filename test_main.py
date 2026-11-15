@@ -74,3 +74,48 @@ def test_web_app(monkeypatch, fake_world):
     wrong = client.post("/webhook", json=update("hi"), headers={"X-Telegram-Bot-Api-Secret-Token": "nope"})
     assert wrong.json() == {"ok": False}
     assert len(fake_world) == 1
+
+
+# ---- Day 1 bot (day1_bot.py) ----
+def test_day1_bot(monkeypatch, capsys):
+    import runpy
+    import requests
+
+    sent, calls = [], []
+    updates = [
+        {"update_id": 10, "message": {"from": {"first_name": "Mei Ling"}, "chat": {"id": 1}, "text": "menu"}},
+        {"update_id": 11, "message": {"from": {"first_name": "Ahmad"}, "chat": {"id": 2}, "text": "one kopi-o please"}},
+        {"update_id": 12, "message": {"from": {"first_name": "Ahmad"}, "chat": {"id": 2}, "sticker": {}}},
+    ]
+
+    class Res:
+        def __init__(self, data): self.data = data
+        def json(self): return self.data
+
+    def fake_get(url, params=None, timeout=None):
+        calls.append(params["offset"])
+        if len(calls) == 1:
+            return Res({"ok": True, "result": updates})
+        raise KeyboardInterrupt   # pretend the trainer pressed Ctrl + C
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(requests, "post", lambda url, json=None: sent.append(json))
+    runpy.run_path("day1_bot.py")
+
+    assert calls == [None, 13]
+    assert "Today's menu" in sent[0]["text"]
+    assert sent[1] == {"chat_id": 2, "text": "One Kopi-O coming up! That's $1.20."}
+    assert "Bot stopped." in capsys.readouterr().out
+
+
+def test_day1_bot_wrong_token(monkeypatch, capsys):
+    import runpy
+    import requests
+
+    class Res:
+        def json(self): return {"ok": False, "description": "Unauthorized"}
+
+    monkeypatch.setattr(requests, "get", lambda url, params=None, timeout=None: Res())
+    runpy.run_path("day1_bot.py")
+    out = capsys.readouterr().out
+    assert "Telegram says: Unauthorized" in out and "Bot stopped." in out
