@@ -27,7 +27,10 @@ def update(text, chat_id=111, name="Mei Ling"):
 
 
 # ---------- Day 1: day1_bot.py ----------
-def test_day1_bot(monkeypatch):
+import day1_bot  # noqa: E402
+
+
+def test_day1_polling(monkeypatch):
     sent, calls = [], []
     updates = [
         update("menu", 1),
@@ -41,15 +44,31 @@ def test_day1_bot(monkeypatch):
             return Res({"ok": True, "result": updates})
         raise KeyboardInterrupt   # pretend someone pressed Ctrl + C
 
+    posts = []
     monkeypatch.setattr(requests, "get", fake_get)
-    monkeypatch.setattr(requests, "post", lambda url, json=None: sent.append(json))
+    monkeypatch.setattr(requests, "post", lambda url, json=None: (posts.append(url), sent.append(json)))
     with pytest.raises(KeyboardInterrupt):
-        runpy.run_path("day1_bot.py")
+        runpy.run_path("day1_bot.py", run_name="__main__")
 
+    assert posts[0].endswith("/deleteWebhook")      # switches Telegram to polling first
     assert calls == [None, 13]
-    assert "Today's menu" in sent[0]["text"]
-    assert sent[1] == {"chat_id": 2, "text": "One Kopi-O coming up! That's $1.20."}
-    assert len(sent) == 2   # the sticker was skipped
+    texts = [j["text"] for j in sent if j]
+    assert "Today's menu" in texts[0]
+    assert texts[1] == "One Kopi-O coming up! That's $1.20."
+    assert len(texts) == 2                           # the sticker was skipped
+
+
+def test_day1_webhook(monkeypatch):
+    sent = []
+    monkeypatch.setattr(day1_bot, "send_message", lambda chat_id, text: sent.append((chat_id, text)))
+    monkeypatch.setattr(day1_bot, "WEBHOOK_SECRET", "s3cret")
+    client = TestClient(day1_bot.app)
+    assert client.get("/").json() == {"status": "Kopi Uncle is running!"}
+    wrong = client.post("/webhook", json=update("menu"), headers={"X-Telegram-Bot-Api-Secret-Token": "nope"})
+    assert wrong.json() == {"ok": False} and sent == []
+    right = client.post("/webhook", json=update("one teh-c"), headers={"X-Telegram-Bot-Api-Secret-Token": "s3cret"})
+    assert right.json() == {"ok": True}
+    assert sent == [(111, "One Teh-C coming up! That's $1.50.")]
 
 
 # ---------- Day 2: main.py ----------

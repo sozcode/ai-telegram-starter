@@ -1,0 +1,17 @@
+[project]
+name = "kopi-uncle"
+version = "1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "requests",
+    "python-dotenv",
+    "pandas",
+    "openai-agents",
+    "supabase",
+    "fastapi",
+]
+
+# Which bot Vercel puts online.
+# Day 1: "day1_bot:app"    Day 2: change it to "main:app"
+[tool.vercel]
+entrypoint = "day1_bot:app"

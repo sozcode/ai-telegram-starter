@@ -1,7 +1,0 @@
-# Packages the bot needs to run (Codespaces AND Vercel install these)
-requests
-python-dotenv
-pandas
-openai-agents
-supabase
-fastapi

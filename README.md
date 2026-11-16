@@ -20,8 +20,9 @@ Day 2   AI agent + tools  →  memory  →  database  →  live on Vercel 🚀
 |---|---|
 | `notebooks/day1/` | 01–04: Python basics → JSON → Telegram API → your first live bot |
 | `notebooks/day2/` | 05–09: first agent → tools → memory → Supabase → build & deploy |
-| **`day1_bot.py`** | **Day 1 bot** — if/else rules, one short file |
-| **`main.py`** | **Day 2 bot** — the AI agent with tools, memory and a web app, one file |
+| **`day1_bot.py`** | **Day 1 bot** — if/else rules, works with polling *and* webhook |
+| **`main.py`** | **Day 2 bot** — the AI agent with tools and memory, polling *and* webhook |
+| `pyproject.toml` | The packages to install, and which bot Vercel puts online |
 | `menu.csv` | The kopitiam menu & prices |
 | `setup.sql` | Creates the database tables in Supabase |
 
@@ -33,6 +34,10 @@ Day 2   AI agent + tools  →  memory  →  database  →  live on Vercel 🚀
 | needs `TELEGRAM_BOT_TOKEN` | also needs `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` |
 
 Chat with it on Telegram. **Ctrl + C** stops it (the `KeyboardInterrupt` message is normal).
+
+Both bots work two ways, but a Telegram bot can only use **one at a time**:
+- **Polling** — `python day1_bot.py` / `python main.py` in Codespaces. Running this switches your bot to polling.
+- **Webhook** — on Vercel, Telegram sends each message to your web app. Switch to it with the *setWebhook* cell (notebook 04 or 09).
 
 Try: *"2 kopi-o peng and 1 kaya toast set, how much?"* · *"I'm in Bedok, what should I drink?"* · *"what did I order just now?"*
 
@@ -46,17 +51,16 @@ Try: *"2 kopi-o peng and 1 kaya toast set, how much?"* · *"I'm in Bedok, what s
 
 ## 🌍 Go live on Vercel
 
-Follow **notebook 09**, steps 4–6:
-1. Commit + sync your code to GitHub.
-2. Import the repo on [vercel.com](https://vercel.com), add your keys plus a `WEBHOOK_SECRET` under **Environment Variables**, then **Redeploy**.
-3. Run the *"Tell Telegram where your bot lives"* cell in notebook 09.
+- **Day 1:** follow *Put your bot online* at the end of **notebook 04**. `pyproject.toml` tells Vercel to run `day1_bot.py`.
+- **Day 2:** in `pyproject.toml`, change `entrypoint = "day1_bot:app"` to `"main:app"`, add your new keys in Vercel, then commit + sync (**notebook 09**, step 4).
 
 ## 🛠️ Troubleshooting
 
 | Problem | Fix |
 |---|---|
 | `KeyError: 'result'` when starting a bot | Wrong `TELEGRAM_BOT_TOKEN`, or the bot is already running somewhere else. |
-| Bot doesn't reply after deploying | Re-run the webhook cell in notebook 09. Is `python main.py` still running? (It switches Telegram back to polling.) |
+| Bot doesn't reply after deploying | Re-run the *setWebhook* cell (notebook 04 or 09). Did you run `python day1_bot.py` / `python main.py`? That switches the bot back to polling. |
+| Vercel shows the wrong bot | Check `entrypoint` in `pyproject.toml`, then commit + sync. |
 | Supabase `permission denied` | Run `setup.sql` again. |
 | Bot stops replying on Vercel | Check **Vercel → Logs** for the error. Usually a missing or wrong key. |
 | Codespace stopped | It sleeps when idle. Reopen it and run your bot again. |
