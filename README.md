@@ -3,7 +3,7 @@
 Starter repo for the Sozcode 2-day course. By the end you'll have a **live AI agent on Telegram** that anyone can chat with.
 
 ```
-Day 1   Python basics  →  Telegram API  →  rule-based bot
+Day 1   Python basics  →  Telegram API  →  your first bot (if/else rules)
 Day 2   AI agent + tools  →  memory  →  database  →  live on Vercel 🚀
 ```
 
@@ -20,28 +20,23 @@ Day 2   AI agent + tools  →  memory  →  database  →  live on Vercel 🚀
 |---|---|
 | `notebooks/day1/` | 01–04: Python basics → JSON → Telegram API → your first live bot |
 | `notebooks/day2/` | 05–09: first agent → tools → memory → Supabase → build & deploy |
-| **`day1_bot.py`** | **Day 1 bot** — the if/else rule bot from notebook 04, in one short file |
-| **`main.py`** | **Day 2 bot** — the full AI agent (tools, memory, web app) in one file |
+| **`day1_bot.py`** | **Day 1 bot** — if/else rules, one short file |
+| **`main.py`** | **Day 2 bot** — the AI agent with tools, memory and a web app, one file |
 | `menu.csv` | The kopitiam menu & prices |
 | `setup.sql` | Creates the database tables in Supabase |
-| `.env.example` | The keys you'll need |
 
 ## ▶️ Run your bot
 
-| Day 1 (rules) | Day 2 (AI agent) |
+| Day 1 | Day 2 |
 |---|---|
 | `python day1_bot.py` | `python main.py` |
+| needs `TELEGRAM_BOT_TOKEN` | also needs `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` |
 
-Chat with it on Telegram. **Ctrl + C** stops it.
+Chat with it on Telegram. **Ctrl + C** stops it (the `KeyboardInterrupt` message is normal).
 
-`main.py` picks its brain by itself:
-- **No `OPENAI_API_KEY`** → Day 1 if/else rules
-- **With `OPENAI_API_KEY`** → the AI agent (`gpt-6-luna`, with menu, bill and weather tools)
-- **With Supabase keys** → remembers every chat even after a restart
+Try: *"2 kopi-o peng and 1 kaya toast set, how much?"* · *"I'm in Bedok, what should I drink?"* · *"what did I order just now?"*
 
-Try: *"2 kopi-o peng and 1 kaya toast set, how much?"* · *"I'm in Bedok, what should I drink?"* · *"what did I order just now?"* · `/reset`
-
-## 🗄️ Add Supabase memory (Day 2)
+## 🗄️ Supabase (Day 2)
 
 1. Create a free project at [supabase.com](https://supabase.com) (no credit card, pick Singapore).
 2. **SQL Editor → New query** → paste `setup.sql` → **Run**.
@@ -51,25 +46,20 @@ Try: *"2 kopi-o peng and 1 kaya toast set, how much?"* · *"I'm in Bedok, what s
 
 ## 🌍 Go live on Vercel
 
-1. **Source Control** tab → **Commit** → **Sync Changes**.
-2. [vercel.com](https://vercel.com) → **Add New → Project** → import your repo → **Deploy**.
-3. **Settings → Environment Variables** → add the keys from your `.env`, plus `WEBHOOK_SECRET` (any random text) → **Redeploy**.
-4. Open `https://YOUR-APP.vercel.app/` — check everything says `true`.
-5. Stop `python main.py`, then open `https://YOUR-APP.vercel.app/setup` **once**.
-
-Your bot now runs 24/7. 🎉 (Running `python main.py` again switches it back to Codespaces — visit `/setup` again afterwards.)
+Follow **notebook 09**, steps 4–6:
+1. Commit + sync your code to GitHub.
+2. Import the repo on [vercel.com](https://vercel.com), add your keys plus a `WEBHOOK_SECRET` under **Environment Variables**, then **Redeploy**.
+3. Run the *"Tell Telegram where your bot lives"* cell in notebook 09.
 
 ## 🛠️ Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `Telegram says: Unauthorized` | Wrong `TELEGRAM_BOT_TOKEN` in `.env`. |
-| `Telegram says: Conflict` | Your bot is running somewhere else — stop the other one. |
-| Bot doesn't reply after deploying | Did you open `/setup`? Is `python main.py` still running? |
-| `/` shows `"brain": "rules"` on Vercel | Add `OPENAI_API_KEY` in Vercel, then **Redeploy**. |
+| `KeyError: 'result'` when starting a bot | Wrong `TELEGRAM_BOT_TOKEN`, or the bot is already running somewhere else. |
+| Bot doesn't reply after deploying | Re-run the webhook cell in notebook 09. Is `python main.py` still running? (It switches Telegram back to polling.) |
 | Supabase `permission denied` | Run `setup.sql` again. |
-| "Uncle's brain got problem" | Check the terminal (or **Vercel → Logs**) for the error. Usually a wrong key. |
-| Codespace stopped | It sleeps when idle. Reopen it and run `python main.py` again. |
+| Bot stops replying on Vercel | Check **Vercel → Logs** for the error. Usually a missing or wrong key. |
+| Codespace stopped | It sleeps when idle. Reopen it and run your bot again. |
 
 ---
 
@@ -83,4 +73,4 @@ Your bot now runs 24/7. 🎉 (Running `python main.py` again switches it back to
 - [ ] Open a codespace from the template on the venue's network.
 - [ ] Run all 9 notebooks with a real key.
 - [ ] Multi-turn test ("what did I order just now?") to confirm conversation memory works with your model.
-- [ ] `pytest` — checks the bot without any keys.
+- [ ] `pytest` — checks both bots without any keys.
