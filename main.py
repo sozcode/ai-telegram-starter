@@ -1,21 +1,20 @@
-# ☕ Day 2 bot - Kopi Uncle, an AI agent on Telegram (OpenAI Responses API)
+# 🇸🇬 Day 2 bot - SG Data Bot, an AI assistant on Telegram (OpenAI Responses API)
 #
 #   In Codespaces:  python main.py   (Ctrl + C to stop)
 #   On Vercel:      Vercel runs the `app` in part 6 for you
 #
-# One bot, one person chatting with it. Read top to bottom - each part matches a notebook.
+# One bot, one person chatting with it, text messages only.
+# Read top to bottom - each part matches a notebook.
 
-import base64
 import json
 import os
 
-import pandas as pd
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header
 from openai import OpenAI
 
-# ----- 1. Settings: keys from your .env file (or Vercel settings) -----
+# ----- 1. Settings: keys and IDs from your .env file (or Vercel settings) -----
 load_dotenv()
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 BASE = f"https://api.telegram.org/bot{TOKEN}"
@@ -24,19 +23,16 @@ MODEL = os.environ.get("OPENAI_MODEL", "gpt-6-luna")
 
 client = OpenAI()   # reads OPENAI_API_KEY by itself
 
-# Memory (notebook 08): one conversation that OpenAI stores for us.
-# Save its ID as OPENAI_CONVERSATION_ID so Uncle still remembers after a restart.
+# Saved in notebook 08 - or made fresh here if you haven't saved them yet.
+# The conversation is the bot's memory (your PDF notes are inside it, notebook 08).
 CONVERSATION_ID = os.environ.get("OPENAI_CONVERSATION_ID") or client.conversations.create().id
+# The HDB prices file, uploaded to OpenAI so the python tool can read it (notebook 07).
+HDB_FILE_ID = os.environ.get("OPENAI_HDB_FILE_ID") or client.files.create(
+    file=open("hdb_resale_prices.csv", "rb"), purpose="user_data"
+).id
 
 
-# ----- 2. Function tools: our own Python functions (notebook 06) -----
-menu = pd.read_csv("menu.csv")
-
-
-def get_menu():
-    return menu.to_string(index=False)
-
-
+# ----- 2. Function tools: live data from data.gov.sg (notebook 06) -----
 def get_weather(area):
     data = requests.get("https://api-open.data.gov.sg/v2/real-time/api/two-hr-forecast").json()
     for forecast in data["data"]["items"][0]["forecasts"]:
@@ -45,52 +41,60 @@ def get_weather(area):
     return f"No area called {area}"
 
 
+def get_air_quality():
+    data = requests.get("https://api-open.data.gov.sg/v2/real-time/api/psi").json()
+    psi = data["data"]["items"][0]["readings"]["psi_twenty_four_hourly"]
+    return f"24-hour PSI by region: {psi}"   # under 50 = good, 51-100 = moderate
+
+
 # the names the AI uses -> our Python functions
-functions = {"get_menu": get_menu, "get_weather": get_weather}
+functions = {"get_weather": get_weather, "get_air_quality": get_air_quality}
 
 
-# ----- 3. All the tools Uncle can use (notebooks 06-07) -----
+# ----- 3. All the tools the bot can use (notebooks 06-07) -----
 tools = [
     {
         "type": "function",
-        "name": "get_menu",
-        "description": "Get the kopitiam menu with prices.",
-        "parameters": {"type": "object", "properties": {}},
-    },
-    {
-        "type": "function",
         "name": "get_weather",
-        "description": "Get the live weather forecast for a Singapore area, e.g. 'Bedok' or 'City'.",
+        "description": "Get the live 2-hour weather forecast for a Singapore area, e.g. 'Bedok' or 'Tampines'.",
         "parameters": {
             "type": "object",
             "properties": {"area": {"type": "string"}},
             "required": ["area"],
         },
     },
-    {"type": "web_search"},                                         # OpenAI searches the web
-    {"type": "code_interpreter", "container": {"type": "auto"}},    # OpenAI runs Python code
+    {
+        "type": "function",
+        "name": "get_air_quality",
+        "description": "Get the live air quality (24-hour PSI) for north, south, east, west and central Singapore.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    # OpenAI runs Python for us, with the HDB prices file ready inside
+    {"type": "code_interpreter", "container": {"type": "auto", "file_ids": [HDB_FILE_ID]}},
+    {"type": "web_search"},   # OpenAI searches the web for us
 ]
 
-instructions = """You are Kopi Uncle, a friendly kopitiam uncle in Singapore chatting on Telegram.
-Speak light Singlish. Keep replies short, 1-4 lines, plain text.
-Use get_menu for prices and never guess. Use the python tool to add up bills.
-'Peng' means iced and costs $0.30 more. If someone asks what to drink, check the weather first.
-Use web search for questions about places and news in Singapore.
-If someone sends a photo or file (like a receipt), read it and help them."""
+instructions = """You are SG Data Bot, a helpful assistant for life in Singapore, chatting on Telegram.
+Keep replies short and in plain text (no tables or markdown).
+For HDB resale prices, use the python tool to analyse hdb_resale_prices.csv
+(HDB resale flats sold in the last 12 months, from data.gov.sg).
+For live weather or air quality, use get_weather and get_air_quality.
+Use web search for news and anything else that changes.
+The user's own notes (a PDF) may be earlier in this conversation - use them when relevant."""
 
 
-# ----- 4. Ask Uncle: one message in, one reply out (notebooks 05-08) -----
-def ask_uncle(content):
+# ----- 4. Ask the bot: one message in, one reply out (notebooks 05-08) -----
+def ask(text):
     response = client.responses.create(
         model=MODEL,
         instructions=instructions,
         tools=tools,
         reasoning={"effort": "low"},          # low = faster replies
         conversation=CONVERSATION_ID,         # OpenAI remembers the chat
-        input=[{"role": "user", "content": content}],
+        input=text,
     )
 
-    # Did Uncle ask to use one of OUR functions? Run it and send back the result.
+    # Did the AI ask to use one of OUR functions? Run it and send back the result.
     while any(item.type == "function_call" for item in response.output):
         results = []
         for item in response.output:
@@ -112,42 +116,22 @@ def ask_uncle(content):
     return response.output_text
 
 
-# ----- 5. Telegram: messages, photos and files (notebooks 03 + 07) -----
+# ----- 5. Telegram: text in, text out (notebook 03) -----
 def send_message(chat_id, text):
-    requests.post(f"{BASE}/sendMessage", json={"chat_id": chat_id, "text": text})
-
-
-def download(file_id):
-    # Telegram gives us a file path, then we download the file and turn it into base64 text
-    file_path = requests.get(f"{BASE}/getFile", params={"file_id": file_id}).json()["result"]["file_path"]
-    data = requests.get(f"https://api.telegram.org/file/bot{TOKEN}/{file_path}").content
-    return base64.b64encode(data).decode()
+    requests.post(f"{BASE}/sendMessage", json={"chat_id": chat_id, "text": text[:4096]})   # Telegram's limit
 
 
 def handle_update(update):
     message = update.get("message", {})
-    if not any(key in message for key in ["text", "photo", "document"]):
-        return   # skip stickers, voice notes...
+    if "text" not in message:
+        return   # text only for now - skip photos, stickers...
 
     chat_id = message["chat"]["id"]
-    text = message.get("text") or message.get("caption") or "What's this?"
-    content = [{"type": "input_text", "text": text}]
+    text = message["text"]
 
-    if "photo" in message:   # Telegram sends a few sizes - take the biggest one
-        photo = message["photo"][-1]
-        content.append({"type": "input_image", "image_url": "data:image/jpeg;base64," + download(photo["file_id"])})
-
-    if "document" in message:   # a file, e.g. a PDF receipt
-        doc = message["document"]
-        content.append({
-            "type": "input_file",
-            "filename": doc["file_name"],
-            "file_data": f"data:{doc['mime_type']};base64," + download(doc["file_id"]),
-        })
-
-    answer = ask_uncle(content)
+    answer = ask(text)
     send_message(chat_id, answer)
-    print(f"You: {text}  ->  Uncle: {answer}")
+    print(f"You: {text}\nBot: {answer}\n")
 
 
 # ----- 6. Webhook: the web app Vercel runs (notebook 09) -----
@@ -157,7 +141,7 @@ app = FastAPI()
 
 @app.get("/")
 def home():
-    return {"status": "Kopi Uncle is running!"}
+    return {"status": "SG Data Bot is running!"}
 
 
 @app.post("/webhook")
@@ -172,7 +156,6 @@ def webhook(update: dict, x_telegram_bot_api_secret_token: str = Header("")):
 if __name__ == "__main__":
     requests.post(f"{BASE}/deleteWebhook")   # switch Telegram from webhook to polling
     print("Bot is running... message it on Telegram!")
-    print("Conversation ID:", CONVERSATION_ID)
 
     offset = None
     while True:
