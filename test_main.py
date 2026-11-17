@@ -1,15 +1,16 @@
 # Trainer checks - run with:  pytest
-# No keys needed: Telegram, OpenAI and Supabase are replaced with fakes.
+# No keys needed: Telegram and OpenAI are replaced with fakes.
 import os
 import runpy
 
 import pytest
 import requests
 
-os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
-os.environ.setdefault("SUPABASE_SECRET_KEY", "sb_secret_example")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123:test")
+os.environ.setdefault("OPENAI_API_KEY", "sk-test")
+os.environ.setdefault("OPENAI_CONVERSATION_ID", "conv_test")
 
+import day1_bot  # noqa: E402
 import main  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -27,9 +28,6 @@ def update(text, chat_id=111, name="Mei Ling"):
 
 
 # ---------- Day 1: day1_bot.py ----------
-import day1_bot  # noqa: E402
-
-
 def test_day1_polling(monkeypatch):
     sent, calls = [], []
     updates = [
@@ -72,63 +70,61 @@ def test_day1_webhook(monkeypatch):
 
 
 # ---------- Day 2: main.py ----------
-class FakeTable:
-    def __init__(self, rows):
-        self.rows, self.filters, self.op, self.payload = rows, [], None, None
-
-    def select(self, cols):
-        self.op = "select"
-        return self
-
-    def upsert(self, payload):
-        self.op, self.payload = "upsert", payload
-        return self
-
-    def insert(self, payload):
-        self.op, self.payload = "insert", payload
-        return self
-
-    def eq(self, col, val):
-        self.filters.append((col, val))
-        return self
-
-    def execute(self):
-        match = [r for r in self.rows if all(r.get(c) == v for c, v in self.filters)]
-        if self.op == "upsert":
-            self.rows[:] = [r for r in self.rows if r["chat_id"] != self.payload["chat_id"]] + [self.payload]
-        if self.op == "insert":
-            self.rows.append(self.payload)
-        return Res(match)
+class Item:
+    def __init__(self, type, **fields):
+        self.type = type
+        self.__dict__.update(fields)
 
 
-@pytest.fixture
-def fake_db(monkeypatch):
-    tables = {"chats": [], "messages": []}
-    monkeypatch.setattr(main, "db", type("DB", (), {"table": lambda self, name: FakeTable(tables[name])})())
-    return tables
+class FakeResponses:
+    """Scripted OpenAI: first asks for get_menu, then answers with what the tool returned."""
+
+    def __init__(self):
+        self.calls = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        first = kwargs["input"][0]
+        if first.get("type") == "function_call_output":
+            return Item("response", output=[Item("message")], output_text="Kopi-O is $1.20 lah!")
+        call = Item("function_call", name="get_menu", arguments="{}", call_id="call_1")
+        return Item("response", output=[call], output_text="")
 
 
-def test_memory(fake_db):
-    assert main.get_conversation_id(5) is None
-    main.save_conversation_id(5, "conv_a")
-    main.save_conversation_id(5, "conv_b")
-    assert main.get_conversation_id(5) == "conv_b"
-    assert len(fake_db["chats"]) == 1
+def test_ask_uncle_runs_function_tools(monkeypatch):
+    fake = FakeResponses()
+    monkeypatch.setattr(main, "client", Item("client", responses=fake))
+    answer = main.ask_uncle([{"type": "input_text", "text": "how much is kopi-o?"}])
+
+    assert answer == "Kopi-O is $1.20 lah!"
+    assert len(fake.calls) == 2
+    tool_result = fake.calls[1]["input"][0]
+    assert tool_result["call_id"] == "call_1" and "Kopi-O" in tool_result["output"]
+    assert all(c["conversation"] == main.CONVERSATION_ID for c in fake.calls)   # one remembered chat
+    assert {t.get("name") or t["type"] for t in fake.calls[0]["tools"]} == {"get_menu", "get_weather", "web_search", "code_interpreter"}
 
 
-def test_handle_update(monkeypatch, fake_db):
-    sent = []
-    monkeypatch.setattr(main, "ask_uncle", lambda chat_id, text: f"Uncle heard: {text}")
+def test_handle_update_text_photo_file(monkeypatch):
+    asked, sent = [], []
+    monkeypatch.setattr(main, "ask_uncle", lambda content: asked.append(content) or "Can lah!")
     monkeypatch.setattr(main, "send_message", lambda chat_id, text: sent.append((chat_id, text)))
-    main.handle_update(update("one kopi"))
-    main.handle_update({"update_id": 2, "message": {"chat": {"id": 1}, "from": {}, "sticker": {}}})
-    assert sent == [(111, "Uncle heard: one kopi")]
-    assert [m["role"] for m in fake_db["messages"]] == ["user", "bot"]
+    monkeypatch.setattr(main, "download", lambda file_id: "QUJD")   # base64 for "ABC"
+
+    main.handle_update(update("hello"))
+    main.handle_update({"update_id": 2, "message": {"chat": {"id": 1}, "caption": "split this", "photo": [{"file_id": "s"}, {"file_id": "big"}]}})
+    main.handle_update({"update_id": 3, "message": {"chat": {"id": 1}, "document": {"file_id": "d", "file_name": "receipt.pdf", "mime_type": "application/pdf"}}})
+    main.handle_update({"update_id": 4, "message": {"chat": {"id": 1}, "sticker": {}}})
+
+    assert len(asked) == 3 and len(sent) == 3          # the sticker was skipped
+    assert asked[0] == [{"type": "input_text", "text": "hello"}]
+    assert asked[1][1] == {"type": "input_image", "image_url": "data:image/jpeg;base64,QUJD"}
+    assert asked[2][1]["filename"] == "receipt.pdf"
+    assert asked[2][1]["file_data"] == "data:application/pdf;base64,QUJD"
 
 
-def test_tools_and_agent():
-    assert main.prices["kopi-o"] == 1.2
-    assert [t.name for t in main.uncle.tools] == ["get_menu", "calculate_bill", "get_weather"]
+def test_function_tools():
+    assert "Kaya Toast Set" in main.get_menu()
+    assert set(main.functions) == {"get_menu", "get_weather"}
 
 
 def test_web_app(monkeypatch):

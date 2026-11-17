@@ -6,8 +6,7 @@ dependencies = [
     "requests",
     "python-dotenv",
     "pandas",
-    "openai-agents",
-    "supabase",
+    "openai",
     "fastapi",
 ]
 
