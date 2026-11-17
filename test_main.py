@@ -95,7 +95,6 @@ def test_ask_runs_function_tools(monkeypatch):
     fake = FakeResponses()
     monkeypatch.setattr(main, "client", Item("client", responses=fake))
     monkeypatch.setattr(main, "get_air_quality", lambda: "24-hour PSI by region: {'east': 38}")
-    monkeypatch.setitem(main.functions, "get_air_quality", main.get_air_quality)
     answer = main.ask("how's the air?")
 
     assert answer == "Air is good today!"
@@ -120,6 +119,22 @@ def test_handle_update_text_only(monkeypatch):
     assert sent == [(111, "Can!")]
 
 
+def test_ask_runs_get_weather_with_area(monkeypatch):
+    calls = []
+
+    class WeatherThenTalk:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                return Item("response", output=[Item("function_call", name="get_weather", arguments='{"area": "Bedok"}', call_id="w")], output_text="")
+            return Item("response", output=[Item("message")], output_text="Cloudy in Bedok!")
+
+    monkeypatch.setattr(main, "client", Item("client", responses=WeatherThenTalk()))
+    monkeypatch.setattr(main, "get_weather", lambda area: f"{area}: Cloudy")
+    assert main.ask("weather in bedok?") == "Cloudy in Bedok!"
+    assert calls[1]["input"] == [{"type": "function_call_output", "call_id": "w", "output": "Bedok: Cloudy"}]
+
+
 def test_data_gov_functions(monkeypatch):
     weather = {"data": {"items": [{"forecasts": [{"area": "Tampines", "forecast": "Cloudy"}]}]}}
     psi = {"data": {"items": [{"readings": {"psi_twenty_four_hourly": {"east": 38}}}]}}
@@ -139,3 +154,26 @@ def test_web_app(monkeypatch):
     assert wrong.json() == {"ok": False} and handled == []
     right = client.post("/webhook", json=update("hi"), headers={"X-Telegram-Bot-Api-Secret-Token": "s3cret"})
     assert right.json() == {"ok": True} and len(handled) == 1
+
+
+def test_ask_fallback_when_reply_is_empty(monkeypatch):
+    class AlwaysCalls:
+        def create(self, **kwargs):   # keeps asking for a tool, never writes text
+            return Item("response", output=[Item("function_call", name="get_air_quality", arguments="{}", call_id="c")], output_text="")
+
+    monkeypatch.setattr(main, "client", Item("client", responses=AlwaysCalls()))
+    monkeypatch.setattr(main, "get_air_quality", lambda: "PSI 40")
+    assert main.ask("air?") == "Sorry, I got stuck - please ask again."
+
+
+def test_ask_without_tools(monkeypatch):
+    calls = []
+
+    class JustTalks:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return Item("response", output=[Item("message")], output_text="Hello!")
+
+    monkeypatch.setattr(main, "client", Item("client", responses=JustTalks()))
+    assert main.ask("hi") == "Hello!"
+    assert len(calls) == 1   # no tools asked for, so only one call to OpenAI

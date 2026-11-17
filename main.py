@@ -47,10 +47,6 @@ def get_air_quality():
     return f"24-hour PSI by region: {psi}"   # under 50 = good, 51-100 = moderate
 
 
-# the names the AI uses -> our Python functions
-functions = {"get_weather": get_weather, "get_air_quality": get_air_quality}
-
-
 # ----- 3. All the tools the bot can use (notebooks 06-07) -----
 tools = [
     {
@@ -94,16 +90,22 @@ def ask(text):
         input=text,
     )
 
-    # Did the AI ask to use one of OUR functions? Run it and send back the result.
-    while any(item.type == "function_call" for item in response.output):
-        results = []
-        for item in response.output:
-            if item.type == "function_call":
-                arguments = json.loads(item.arguments)
-                output = functions[item.name](**arguments)
-                results.append({"type": "function_call_output", "call_id": item.call_id, "output": output})
-                print(f"   🔧 {item.name}({arguments})")
+    # Did the AI ask to use our functions? Run them.
+    results = []
+    for item in response.output:
+        if item.type == "function_call":
+            arguments = json.loads(item.arguments)   # the AI's inputs, as a dictionary
 
+            if item.name == "get_weather":
+                output = get_weather(arguments["area"])
+            elif item.name == "get_air_quality":
+                output = get_air_quality()
+
+            results.append({"type": "function_call_output", "call_id": item.call_id, "output": output})
+            print(f"   🔧 {item.name}({arguments})")
+
+    # If it did, send the results back so it can write the final reply
+    if results:
         response = client.responses.create(
             model=MODEL,
             instructions=instructions,
@@ -113,7 +115,7 @@ def ask(text):
             input=results,
         )
 
-    return response.output_text
+    return response.output_text or "Sorry, I got stuck - please ask again."
 
 
 # ----- 5. Telegram: text in, text out (notebook 03) -----
