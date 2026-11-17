@@ -10,6 +10,7 @@ os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123:test")
 os.environ.setdefault("OPENAI_API_KEY", "sk-test")
 os.environ.setdefault("OPENAI_CONVERSATION_ID", "conv_test")
 os.environ.setdefault("OPENAI_HDB_FILE_ID", "file_test")
+os.environ.setdefault("OPENAI_VECTOR_STORE_ID", "vs_test")
 
 import day1_bot  # noqa: E402
 import main  # noqa: E402
@@ -103,9 +104,11 @@ def test_ask_runs_function_tools(monkeypatch):
     assert tool_result["call_id"] == "call_1" and "PSI" in tool_result["output"]
     assert all(c["conversation"] == main.CONVERSATION_ID for c in fake.calls)   # one remembered chat
     tools = fake.calls[0]["tools"]
-    assert {t.get("name") or t["type"] for t in tools} == {"get_weather", "get_air_quality", "code_interpreter", "web_search"}
+    assert {t.get("name") or t["type"] for t in tools} == {"get_weather", "get_air_quality", "code_interpreter", "file_search", "web_search"}
     python_tool = [t for t in tools if t["type"] == "code_interpreter"][0]
     assert python_tool["container"]["file_ids"] == [main.HDB_FILE_ID]      # the HDB csv goes to the python tool
+    search_tool = [t for t in tools if t["type"] == "file_search"][0]
+    assert search_tool["vector_store_ids"] == [main.VECTOR_STORE_ID]      # the PDFs go to file search
 
 
 def test_handle_update_text_only(monkeypatch):

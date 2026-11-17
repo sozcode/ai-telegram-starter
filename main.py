@@ -23,13 +23,10 @@ MODEL = os.environ.get("OPENAI_MODEL", "gpt-6-luna")
 
 client = OpenAI()   # reads OPENAI_API_KEY by itself
 
-# Saved in notebook 08 - or made fresh here if you haven't saved them yet.
-# The conversation is the bot's memory (your PDF notes are inside it, notebook 08).
-CONVERSATION_ID = os.environ.get("OPENAI_CONVERSATION_ID") or client.conversations.create().id
-# The HDB prices file, uploaded to OpenAI so the python tool can read it (notebook 07).
-HDB_FILE_ID = os.environ.get("OPENAI_HDB_FILE_ID") or client.files.create(
-    file=open("hdb_resale_prices.csv", "rb"), purpose="user_data"
-).id
+# Things you created in the notebooks and saved in .env:
+HDB_FILE_ID = os.environ.get("OPENAI_HDB_FILE_ID")             # the HDB prices CSV (notebook 07)
+VECTOR_STORE_ID = os.environ.get("OPENAI_VECTOR_STORE_ID")     # your PDFs, ready to search (notebook 08)
+CONVERSATION_ID = os.environ.get("OPENAI_CONVERSATION_ID")     # the bot's memory (notebook 09)
 
 
 # ----- 2. Function tools: live data from data.gov.sg (notebook 06) -----
@@ -47,7 +44,7 @@ def get_air_quality():
     return f"24-hour PSI by region: {psi}"   # under 50 = good, 51-100 = moderate
 
 
-# ----- 3. All the tools the bot can use (notebooks 06-07) -----
+# ----- 3. All the tools the bot can use (notebooks 06-08) -----
 tools = [
     {
         "type": "function",
@@ -67,19 +64,22 @@ tools = [
     },
     # OpenAI runs Python for us, with the HDB prices file ready inside
     {"type": "code_interpreter", "container": {"type": "auto", "file_ids": [HDB_FILE_ID]}},
+    # OpenAI searches your PDFs for us
+    {"type": "file_search", "vector_store_ids": [VECTOR_STORE_ID]},
     {"type": "web_search"},   # OpenAI searches the web for us
 ]
 
 instructions = """You are SG Data Bot, a helpful assistant for life in Singapore, chatting on Telegram.
 Keep replies short and in plain text (no tables or markdown).
+For questions about the user's own documents (flat listings, viewing notes,
+renovation quotes, their flat-hunting notes), use file search.
 For HDB resale prices, use the python tool to analyse hdb_resale_prices.csv
 (HDB resale flats sold in the last 12 months, from data.gov.sg).
 For live weather or air quality, use get_weather and get_air_quality.
-Use web search for news and anything else that changes.
-The user's own notes (a PDF) may be earlier in this conversation - use them when relevant."""
+Use web search for news and anything else that changes."""
 
 
-# ----- 4. Ask the bot: one message in, one reply out (notebooks 05-08) -----
+# ----- 4. Ask the bot: one message in, one reply out (notebooks 05-09) -----
 def ask(text):
     response = client.responses.create(
         model=MODEL,
@@ -136,7 +136,7 @@ def handle_update(update):
     print(f"You: {text}\nBot: {answer}\n")
 
 
-# ----- 6. Webhook: the web app Vercel runs (notebook 09) -----
+# ----- 6. Webhook: the web app Vercel runs (notebook 10) -----
 # Telegram sends every new message here, instead of us asking for it
 app = FastAPI()
 
